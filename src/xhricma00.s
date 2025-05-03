@@ -48,9 +48,10 @@ updateVertices_simd:
     # x_loop counter
     mov r15, 0 
     # y_loop counter
-    mov r14, 0 
+    mov r14, 0
 
-    vbroadcastss ymm0, xmm0 # time, const for one function iterations
+    # time
+    vbroadcastss ymm0, xmm0 
 
     # originalXZ offset
     mov rax, r9 # size
@@ -82,20 +83,61 @@ z_loop:
     # tangentZ.z = 1
     vbroadcastss ymm7, [rip + ONE]
     
+    # originalX
     vmovups ymm8, [r11 + rbx]
+    # originalZ
     vmovups ymm9, [r8 + rbx]
 
     mov rcx, [rbp + 24]
     
 waves_loop:
 
+    # 2 * pi
     vbroadcastss ymm10, [rip + TWO_PI]
 
     mov rax, [rbp + 24] # numWaves
     mov rdx, 4 # sizeof(float)
     mul rdx # wavelength offset
     add rax, [rbp + 16] # waves base
+    # wavelength
     vbroadcastss ymm11, [rax + 4 * rcx - 4]
+
+    # k
+    vdivps ymm10, ymm10, ymm11
+
+    mov rax, [rbp + 16] # waves base
+    # amplitude - not offset
+    vbroadcastss ymm11, [rax + 4 * rcx - 4]
+    
+    vbroadcastss ymm12, [rip + HALF]
+    # amplitude * 0.5
+    vmulps ymm11, ymm11, ymm12
+
+    # k * time
+    vmulps ymm12, ymm10, ymm0
+
+    # range reduction: k_time - 2pi * floor(k_time/2pi)
+    # floor- vroundps
+
+    # 2pi
+    vbroadcastss ymm13, [rip + TWO_PI]
+
+    # k_time / 2pi
+    vdivps ymm14, ymm12, ymm13
+
+    # round
+    vroundps ymm14, ymm14, 0x10
+
+    # 2 * floor(..)
+    vmulps ymm14, ymm13, ymm14
+    
+    # k_time - ..
+    # k*time [0,2pi]
+    vsubps ymm12, ymm12, ymm14
+
+    # map to int
+
+    
 
     loop waves_loop 
 

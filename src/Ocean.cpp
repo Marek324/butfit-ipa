@@ -101,7 +101,7 @@ void convert_verts_y_to_float_array(const std::vector<glm::vec3> &verts, float *
 {
     size_t numVerts = verts.size();
 
-    for (int i = 0; i < numVerts; i++)
+    for (size_t i = 0; i < numVerts; i++)
     {
         dst[i] = verts.at(i).y;
     }
@@ -109,7 +109,7 @@ void convert_verts_y_to_float_array(const std::vector<glm::vec3> &verts, float *
 
 void float_array_to_verts(const float *arr, float *dst, size_t size)
 {
-    for (int i = 0; i < size; i++)
+    for (size_t i = 0; i < size; i++)
     {
         dst[i * 3 * sizeof(float) + sizeof(float)] = arr[i];
     }
@@ -119,6 +119,10 @@ float min_vert_err = FLT_MAX;
 float max_vert_err = 0;
 float min_norm_err = FLT_MAX;
 float max_norm_err = 0;
+float min_vert_asm_err = FLT_MAX;
+float max_vert_asm_err = 0;
+float min_norm_asm_err = FLT_MAX;
+float max_norm_asm_err = 0;
 
 void Ocean::update(float deltaTime)
 {
@@ -163,16 +167,16 @@ void Ocean::update(float deltaTime)
     end_time = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
 
-    for (int i = 0; i < o_updatedVertices_vec.size(); i++)
+    for (size_t i = 0; i < o_updatedVertices_vec.size(); i++)
     {
         o_updatedVertices_vec.at(i).y = verts_y_own[i];
     }
     std::cout << "Ocean::update (own) took " << duration.count() << "ns " << "CPU cycles: " << (end - start) << std::endl;
-    std::cout << "Own implementation check " << (((o_updatedVertices_vec == updatedVertices_vec) && (o_updatedNormals_vec == updatedNormals_vec)) ? "OK" : "NOT OK") << std::endl;
+    std::cout << "Own implementation check " << (((o_updatedVertices_vec == updatedVertices_vec) && (o_updatedNormals_vec == updatedNormals_vec)) ? "SAME" : "NOT SAME") << std::endl;
     if (o_updatedVertices_vec != updatedVertices_vec)
     {
         double totalErr = 0;
-        for (int i = 0; i < o_updatedVertices_vec.size(); i++)
+        for (size_t i = 0; i < o_updatedVertices_vec.size(); i++)
         {
             totalErr += abs(o_updatedVertices_vec.at(i).y - updatedVertices_vec.at(i).y);
         }
@@ -185,7 +189,7 @@ void Ocean::update(float deltaTime)
     if (o_updatedNormals_vec != updatedNormals_vec)
     {
         double totalErr = 0;
-        for (int i = 0; i < o_updatedNormals_vec.size(); i++)
+        for (size_t i = 0; i < o_updatedNormals_vec.size(); i++)
         {
             totalErr += abs(o_updatedNormals_vec.at(i).y - updatedNormals_vec.at(i).y);
         }
@@ -228,13 +232,39 @@ void Ocean::update(float deltaTime)
     duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
 
     std::cout << "Ocean::update (SIMD) took " << duration.count() << "ns " << "CPU cycles: " << (end - start) << std::endl;
-
+    
     // --- Convert float arrays back to vectors for updateBuffers (if needed) ---
     std::vector<glm::vec3> updatedVertices_vec_from_array(numVertices);
     std::vector<glm::vec3> updatedNormals_vec_from_array(numVertices);
-
+    
+    std::cout << "ASM implementation check " << (((updatedVertices_vec_from_array == updatedVertices_vec) && (updatedNormals_vec_from_array == updatedNormals_vec)) ? "SAME" : "NOT SAME") << std::endl;
     convert_float_array_to_vec3(updatedVertices_simd_array, updatedVertices_vec_from_array);
     convert_float_array_to_vec3(updatedNormals_simd_array, updatedNormals_vec_from_array);
+    if (updatedVertices_vec_from_array != updatedVertices_vec)
+    {
+        double totalErr = 0;
+        for (size_t i = 0; i < updatedVertices_vec_from_array.size(); i++)
+        {
+            totalErr += abs(updatedVertices_vec_from_array.at(i).y - updatedVertices_vec.at(i).y);
+        }
+        min_vert_asm_err = min_vert_asm_err > totalErr ? totalErr : min_vert_asm_err;
+        max_vert_asm_err = max_vert_asm_err < totalErr ? totalErr : max_vert_asm_err;
+        std::cout << "vert totalErr: " << totalErr << " vec size: " << updatedVertices_vec_from_array.size() << "\n"
+                  << "min: " << min_vert_asm_err << " max: " << max_vert_asm_err << std::endl;
+    }
+
+    if (updatedNormals_vec_from_array != updatedNormals_vec)
+    {
+        double totalErr = 0;
+        for (size_t i = 0; i < updatedNormals_vec_from_array.size(); i++)
+        {
+            totalErr += abs(updatedNormals_vec_from_array.at(i).y - updatedNormals_vec.at(i).y);
+        }
+        min_norm_asm_err = min_norm_asm_err > totalErr ? totalErr : min_norm_asm_err;
+        max_norm_asm_err = max_norm_asm_err < totalErr ? totalErr : max_norm_asm_err;
+        std::cout << "norm totalErr: " << totalErr << " vec size: " << updatedNormals_vec_from_array.size() << "\n"
+                  << "min: " << min_norm_asm_err << " max: " << max_norm_asm_err << std::endl;
+    }
     // READ
 
     // THIS FUNCTION UPDATES THE VERTICES AND NORMALS. If updateVertices_simd doesn't work,
@@ -509,7 +539,6 @@ void Ocean::cleanup()
     vaoID = 0;
 }
 
-// void Ocean::own_cpp_updateVertices(std::vector<glm::vec3> *updatedVertices, std::vector<glm::vec3> *updatedNormals, float *originalWorldX_, float *originalWorldZ_, int _grid_size, float time)
 void Ocean::own_cpp_updateVertices(float *updatedVertices, std::vector<glm::vec3> *updatedNormals, float *originalWorldX_, float *originalWorldZ_, int _grid_size, float time)
 {
     for (int x = 0; x < _grid_size; ++x)
@@ -527,11 +556,14 @@ void Ocean::own_cpp_updateVertices(float *updatedVertices, std::vector<glm::vec3
             for (const auto &wave : gerstnerWaves)
             {
                 float k = 2.0f * glm::pi<float>() / wave.wavelength;
+                // wavelength -
                 float periodicAmplitude = wave.amplitude * 0.5f * (1.0f + sin(k * time));
+                // amplitude -
                 float amp_k = periodicAmplitude * k;
-                float dotProduct = glm::dot(wave.direction, glm::vec2(originalX, originalZ));
-                float phase = k * (dotProduct - wave.speed * time + wave.phase);
-                // w, dotProduct, k -
+                // float dotProduct = glm::dot(wave.direction, glm::vec2(originalX, originalZ));
+                float dotProduct = wave.direction.x * originalX + wave.direction.y * originalZ;
+                float phase = (dotProduct - wave.speed * time + wave.phase) * k;  
+                // dotProduct, k -
                 float sinTerm = sin(phase);
                 float waveHeightValue = periodicAmplitude * sinTerm;
                 // periodicAmplitude, -
@@ -565,7 +597,18 @@ void Ocean::own_cpp_updateVertices(float *updatedVertices, std::vector<glm::vec3
             }
 
             updatedVertices[x * _grid_size + z] = total_height;
-            (*updatedNormals)[x * _grid_size + z] = glm::normalize(glm::cross(tangentZ, tangentX));
+            
+            // cross product
+            float cross_x = tangentZ.y * tangentX.z - tangentZ.z * tangentX.y;
+            float cross_y = tangentZ.z * tangentX.x - tangentZ.x * tangentX.z;
+            float cross_z = tangentZ.x * tangentX.y - tangentZ.y * tangentX.x;
+            // normalization
+            float len = sqrt(cross_x * cross_x + cross_y * cross_y + cross_z * cross_z);
+            cross_x /= len;
+            cross_y /= len;
+            cross_z /= len;
+            (*updatedNormals)[x * _grid_size + z] = glm::vec3(cross_x, cross_y, cross_z);
+            // (*updatedNormals)[x * _grid_size + z] = glm::normalize(glm::cross(tangentZ, tangentX));
         }
     }
 }
