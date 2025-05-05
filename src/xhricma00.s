@@ -7,6 +7,8 @@
     ONE: .float 1.0
     HALF: .float 0.5
     
+    ROUND_MODE_NEAREST = 0
+    ROUND_MODE_FLOOR = 1
 
 .text
 
@@ -117,16 +119,14 @@ waves_loop:
     vmulps ymm12, ymm10, ymm0
 
     # range reduction: k_time - 2pi * floor(k_time/2pi)
-    # floor- vroundps
-
     # 2pi
     vbroadcastss ymm13, [rip + TWO_PI]
 
     # k_time / 2pi
     vdivps ymm14, ymm12, ymm13
 
-    # round
-    vroundps ymm14, ymm14, 0x10
+    # floor
+    vroundps ymm14, ymm14, ROUND_MODE_FLOOR 
 
     # 2 * floor(..)
     vmulps ymm14, ymm13, ymm14
@@ -137,9 +137,51 @@ waves_loop:
 
     # map to int
 
-    
+    # LUT size
+    vbroadcastsd ymm14, [rbp + 48] 
+    # int -> float
+    vcvtdq2ps ymm14, ymm14
+    vbroadcastss ymm15, [rip + ONE]
+    # N - 1
+    vsubps ymm14, ymm14, ymm15
+    # k * time * (N-1)
+    vmulps ymm12, ymm12, ymm14
+    # / 2pi
+    vdivps ymm12, ymm12, ymm13
+    # round
+    vroundps ymm12, ymm12, ROUND_MODE_NEAREST
 
-    loop waves_loop 
+    # convert to int 
+    vcvtps2dq ymm12, ymm12
+    
+    # ymm10 - k
+    # ymm11 - amp * 0.5
+    # ymm12 - k*time LUT index
+
+    # * 4 - sizeof float 
+    # mov eax, 4
+    # vmovd xmm13, eax
+    # vpbroadcastd ymm13, xmm13
+    # vmulps ymm12, ymm12, ymm13
+    
+    # offset + base
+    # mov eax, [rbp + 32]
+    # vmovd xmm13, eax
+    # vpbroadcastd ymm13, xmm13
+    # vaddps ymm12, ymm12, ymm13
+
+    # mask
+    mov eax, -1
+    vmovd xmm13, eax
+    vpbroadcastd ymm13, xmm13
+
+    mov rax, [rbp + 32]
+    vgatherdps ymm14, [rax + ymm12*4], ymm13
+
+    dec rcx
+    jz waves_end
+    jmp waves_loop 
+waves_end:
 
     add r14, 8
     # inc offset by 8 floats, no need to mul again

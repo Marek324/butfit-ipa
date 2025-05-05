@@ -567,7 +567,7 @@ void Ocean::own_cpp_updateVertices(float *updatedVertices, std::vector<glm::vec3
                 float sinTerm = sin(phase);
                 float waveHeightValue = periodicAmplitude * sinTerm;
                 // periodicAmplitude, -
-                total_height += waveHeightValue;
+                updatedVertices[x * _grid_size + z] += waveHeightValue;
                 // waveHeightValue -
                 float cosTerm = cos(phase);
                 // phase -
@@ -595,9 +595,8 @@ void Ocean::own_cpp_updateVertices(float *updatedVertices, std::vector<glm::vec3
                     amp_y_sin * wave.direction.y);
                 // amp_dir_y, amp_y_sin -
             }
-
-            updatedVertices[x * _grid_size + z] = total_height;
             
+            // (*updatedNormals)[x * _grid_size + z] = glm::normalize(glm::cross(tangentZ, tangentX));
             // cross product
             float cross_x = tangentZ.y * tangentX.z - tangentZ.z * tangentX.y;
             float cross_y = tangentZ.z * tangentX.x - tangentZ.x * tangentX.z;
@@ -608,7 +607,6 @@ void Ocean::own_cpp_updateVertices(float *updatedVertices, std::vector<glm::vec3
             cross_y /= len;
             cross_z /= len;
             (*updatedNormals)[x * _grid_size + z] = glm::vec3(cross_x, cross_y, cross_z);
-            // (*updatedNormals)[x * _grid_size + z] = glm::normalize(glm::cross(tangentZ, tangentX));
         }
     }
 }
