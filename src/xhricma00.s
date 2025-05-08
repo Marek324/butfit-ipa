@@ -6,39 +6,35 @@
     # reduce float to [0, 2pi]
     # float - 2pi * floor(float/2pi)
 
-    # 2pi
-    vbroadcastss ymm13, [rip + TWO_PI]
-
     # float/2pi
-    vdivps ymm14, \reg, ymm13 
+    vdivps ymm15, \reg, [rip + TWO_PI] 
 
     # floor(float/2pi)
-    vroundps ymm14, ymm14, ROUND_MODE_FLOOR 
+    vroundps ymm15, ymm15, ROUND_MODE_FLOOR 
 
     # 2pi * floor(float/2pi)
-    vmulps ymm14, ymm13, ymm14 
+    vmulps ymm15, ymm15, [rip + TWO_PI]  
     
     # float - 2pi * floor(float/2pi)
-    vsubps \reg, \reg, ymm14
+    vsubps \reg, \reg, ymm15
 
     # map to int
     #round((float * (N-1)) / 2pi)
 
     # LUT size, N
     mov eax, [rbp + 48]
-    vmovd xmm14, eax
-    vpbroadcastd ymm14, xmm14 
+    vmovd xmm15, eax
+    vpbroadcastd ymm15, xmm15 
 
     # int -> float
-    vcvtdq2ps ymm14, ymm14
+    vcvtdq2ps ymm15, ymm15
 
-    vbroadcastss ymm15, [rip + ONE]
     # N - 1
-    vsubps ymm14, ymm14, ymm15
+    vsubps ymm15, ymm15, [rip + ONE]
     # float * (N-1)
-    vmulps \reg, \reg, ymm14 
+    vmulps \reg, \reg, ymm15 
     # (float * (N-1)) / 2pi
-    vdivps \reg, \reg, ymm13 
+    vdivps \reg, \reg, [rip + TWO_PI] 
     # round
     vroundps \reg, \reg, ROUND_MODE_NEAREST
 
@@ -109,12 +105,13 @@
 .endm
 
 .data
+    .align 32
+    TWO_PI: .float 6.283185307, 6.283185307, 6.283185307, 6.283185307, 6.283185307, 6.283185307, 6.283185307, 6.283185307
+    ONE: .float 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0
+    HALF: .float 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5
+    M_ONE: .float -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0
 
-    LOCAL_VARS_SIZE = 8
-    TWO_PI: .float 6.283185307
-    ONE: .float 1.0
-    HALF: .float 0.5
-    
+    LOCAL_VARS_SIZE = 104
     ROUND_MODE_NEAREST = 0
     ROUND_MODE_FLOOR = 1
 
@@ -192,7 +189,7 @@ z_loop:
     vxorps ymm1, ymm1, ymm1
     
     # tangentX.x = 1
-    vbroadcastss ymm2, [rip + ONE]
+    vmovaps ymm2, [rip + ONE]
     # tangentX.y = 0
     vxorps ymm3, ymm3, ymm3
     # tangentX.z = 0
@@ -202,7 +199,7 @@ z_loop:
     # tangentZ.y = 0
     vxorps ymm6, ymm6, ymm6
     # tangentZ.z = 1
-    vbroadcastss ymm7, [rip + ONE]
+    vmovaps ymm7, [rip + ONE]
  
     mov rax, r15 # gridSize
     mul r14 # size * x
@@ -219,7 +216,7 @@ waves_loop:
     je waves_end
 
     # 2 * pi
-    vbroadcastss ymm10, [rip + TWO_PI]
+    vmovaps ymm10, [rip + TWO_PI]
 
     # wave.wavelength
     wavelen ymm11
@@ -227,13 +224,11 @@ waves_loop:
     # k
     vdivps ymm10, ymm10, ymm11
 
-    # amplitude - not offset
-    mov rax, [rbp + 16] # waves base
-    vbroadcastss ymm11, [rax + 4 * rcx]
-    
-    vbroadcastss ymm12, [rip + HALF]
+    # amplitude
+    waveamp ymm11 
+
     # amplitude * 0.5
-    vmulps ymm11, ymm11, ymm12
+    vmulps ymm11, ymm11, [rip + HALF]
 
     # k * time
     vmulps ymm12, ymm10, ymm0
@@ -241,10 +236,8 @@ waves_loop:
     # sin(k*time)
     sin ymm14 ymm12
 
-    vbroadcastss ymm15, [rip + ONE]
-
     # 1 + sin(k*time)
-    vaddps ymm12, ymm15, ymm14
+    vaddps ymm12, ymm14, [rip + ONE]
 
     # periodicAmplitude
     vmulps ymm11, ymm11, ymm12
@@ -284,7 +277,9 @@ waves_loop:
     vmulps ymm10, ymm13, ymm10
 
     # sinTerm
+    vmovups [rsp - 8], ymm10
     sin ymm13 ymm10 
+    vmovups ymm10, [rsp - 8]
     
     # waveHeightValue
     vmulps ymm11, ymm11, ymm13
@@ -295,7 +290,7 @@ waves_loop:
     # cosTerm
     cos ymm11 ymm10
 
-    # ymm10 - phase 
+    # ymm10 - phase - x
     # ymm11 - cosTerm
     # ymm12 - amp_k 
     # ymm13 - sinTerm
@@ -324,14 +319,10 @@ waves_loop:
     # amp_dir_y * sinTerm
     vmulps ymm12, ymm15, ymm13
 
-    mov eax, -1
-    vmovd xmm13, eax
-    vpbroadcastd ymm13, xmm13
-
     # amp_x_sin
-    vmulps ymm10, ymm10, ymm13
+    vmulps ymm10, ymm10, [rip + M_ONE]
     # amp_y_sin
-    vmulps ymm12, ymm12, ymm13
+    vmulps ymm12, ymm12, [rip + M_ONE]
 
     # amp_dir_x *= cosTerm
     vmulps ymm14, ymm14, ymm11
@@ -412,57 +403,57 @@ waves_end:
     # cross_z /= len
     vdivps ymm12, ymm12, ymm14
 
+    # store norms in memory
+    # this all could be achieved with scatter if AVX512 was available
+
     lea rdi, [r11 + 4*rbx]
 
-    vextractf128 xmm9, ymm10, 0      
-    vextractf128 xmm1, ymm11, 0      
-    vextractf128 xmm2, ymm12, 0      
+    vextractf128 xmm8, ymm10, 1
 
-    vunpcklps xmm3, xmm9, xmm1       
-    vunpckhps xmm4, xmm9, xmm1       
+    pextrd [rdi], xmm8, 3
+    pextrd [rdi + 12], xmm8, 2
+    pextrd [rdi + 24], xmm8, 1
+    pextrd [rdi + 36], xmm8, 0
 
-    vunpcklps xmm5, xmm2, xmm2       
-    vunpckhps xmm6, xmm2, xmm2       
+    vextractf128 xmm8, ymm10, 0
 
-    vshufps xmm7, xmm3, xmm5, 0x88   
-    vshufps xmm8, xmm3, xmm5, 0xdd   
+    pextrd [rdi + 48], xmm8, 3
+    pextrd [rdi + 60], xmm8, 2
+    pextrd [rdi + 72], xmm8, 1
+    pextrd [rdi + 84], xmm8, 0
 
-    movups [rdi],     xmm7
-    movups [rdi+16],  xmm8
+    vextractf128 xmm8, ymm11, 1
 
-    vshufps xmm7, xmm4, xmm6, 0x88   
-    vshufps xmm8, xmm4, xmm6, 0xdd   
+    pextrd [rdi + 4], xmm8, 3
+    pextrd [rdi + 16], xmm8, 2
+    pextrd [rdi + 28], xmm8, 1
+    pextrd [rdi + 40], xmm8, 0
 
-    movups [rdi+32],  xmm7
-    movups [rdi+48],  xmm8
+    vextractf128 xmm8, ymm11, 0
 
-    vextractf128 xmm9, ymm10, 1      
-    vextractf128 xmm1, ymm11, 1      
-    vextractf128 xmm2, ymm12, 1      
+    pextrd [rdi + 52], xmm8, 3
+    pextrd [rdi + 64], xmm8, 2
+    pextrd [rdi + 76], xmm8, 1
+    pextrd [rdi + 88], xmm8, 0
 
-    vunpcklps xmm3, xmm9, xmm1       
-    vunpckhps xmm4, xmm9, xmm1       
+    vextractf128 xmm8, ymm12, 1
 
-    vunpcklps xmm5, xmm2, xmm2       
-    vunpckhps xmm6, xmm2, xmm2       
+    pextrd [rdi + 8], xmm8, 3
+    pextrd [rdi + 20], xmm8, 2
+    pextrd [rdi + 32], xmm8, 1
+    pextrd [rdi + 44], xmm8, 0
 
-    vshufps xmm7, xmm3, xmm5, 0x88   
-    vshufps xmm8, xmm3, xmm5, 0xdd   
+    vextractf128 xmm8, ymm12, 0
 
-    movups [rdi+64],  xmm7
-    movups [rdi+80],  xmm8
-
-    vshufps xmm7, xmm4, xmm6, 0x88   
-    vshufps xmm8, xmm4, xmm6, 0xdd   
-
-    movups [rdi+96],  xmm7
-    movups [rdi+112], xmm8   
+    pextrd [rdi + 56], xmm8, 3
+    pextrd [rdi + 68], xmm8, 2
+    pextrd [rdi + 80], xmm8, 1
+    pextrd [rdi + 92], xmm8, 0
 
     add r13, 8
 
     jmp z_loop
 z_end:
-
     inc r14
 
     jmp x_loop
