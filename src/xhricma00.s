@@ -408,47 +408,47 @@ waves_end:
 
     lea rdi, [r11 + 4*rbx]
 
-    vextractf128 xmm8, ymm10, 1
-
-    pextrd [rdi], xmm8, 3
-    pextrd [rdi + 12], xmm8, 2
-    pextrd [rdi + 24], xmm8, 1
-    pextrd [rdi + 36], xmm8, 0
-
     vextractf128 xmm8, ymm10, 0
 
-    pextrd [rdi + 48], xmm8, 3
-    pextrd [rdi + 60], xmm8, 2
-    pextrd [rdi + 72], xmm8, 1
-    pextrd [rdi + 84], xmm8, 0
+    pextrd [rdi], xmm8, 0
+    pextrd [rdi + 12], xmm8, 1
+    pextrd [rdi + 24], xmm8, 2
+    pextrd [rdi + 36], xmm8, 3
 
-    vextractf128 xmm8, ymm11, 1
+    vextractf128 xmm8, ymm10, 1
 
-    pextrd [rdi + 4], xmm8, 3
-    pextrd [rdi + 16], xmm8, 2
-    pextrd [rdi + 28], xmm8, 1
-    pextrd [rdi + 40], xmm8, 0
+    pextrd [rdi + 48], xmm8, 0
+    pextrd [rdi + 60], xmm8, 1
+    pextrd [rdi + 72], xmm8, 2
+    pextrd [rdi + 84], xmm8, 3
 
     vextractf128 xmm8, ymm11, 0
 
-    pextrd [rdi + 52], xmm8, 3
-    pextrd [rdi + 64], xmm8, 2
-    pextrd [rdi + 76], xmm8, 1
-    pextrd [rdi + 88], xmm8, 0
+    pextrd [rdi + 4], xmm8, 0
+    pextrd [rdi + 16], xmm8, 1
+    pextrd [rdi + 28], xmm8, 2
+    pextrd [rdi + 40], xmm8, 3
 
-    vextractf128 xmm8, ymm12, 1
+    vextractf128 xmm8, ymm11, 1
 
-    pextrd [rdi + 8], xmm8, 3
-    pextrd [rdi + 20], xmm8, 2
-    pextrd [rdi + 32], xmm8, 1
-    pextrd [rdi + 44], xmm8, 0
+    pextrd [rdi + 52], xmm8, 0
+    pextrd [rdi + 64], xmm8, 1
+    pextrd [rdi + 76], xmm8, 2
+    pextrd [rdi + 88], xmm8, 3
 
     vextractf128 xmm8, ymm12, 0
 
-    pextrd [rdi + 56], xmm8, 3
-    pextrd [rdi + 68], xmm8, 2
-    pextrd [rdi + 80], xmm8, 1
-    pextrd [rdi + 92], xmm8, 0
+    pextrd [rdi + 8], xmm8, 0
+    pextrd [rdi + 20], xmm8, 1
+    pextrd [rdi + 32], xmm8, 2
+    pextrd [rdi + 44], xmm8, 3
+
+    vextractf128 xmm8, ymm12, 1
+
+    pextrd [rdi + 56], xmm8, 0
+    pextrd [rdi + 68], xmm8, 1
+    pextrd [rdi + 80], xmm8, 2
+    pextrd [rdi + 92], xmm8, 3
 
     add r13, 8
 
