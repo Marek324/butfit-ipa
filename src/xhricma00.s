@@ -1,6 +1,10 @@
 .intel_syntax noprefix
 .code64
 
+# File: xhricma00.s
+# Author: Marek Hric xhricma00
+# SIMD implementation of updateVertices function using AVX2 instructions
+
 # could be generalized to 6 registers, not needed
 .macro lut_idx reg
     # reduce float to [0, 2pi]
